@@ -1,4 +1,3 @@
--- Table: users
 CREATE TYPE user_role AS ENUM ('teacher', 'student');
 
 CREATE TABLE users (
@@ -13,7 +12,6 @@ CREATE TABLE users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Table: students
 CREATE TABLE students (
     id SERIAL PRIMARY KEY,
     user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
@@ -25,7 +23,6 @@ CREATE TABLE students (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Table: attendance
 CREATE TABLE attendance (
     id SERIAL PRIMARY KEY,
     student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
@@ -35,12 +32,11 @@ CREATE TABLE attendance (
     UNIQUE (student_id, date)
 );
 
--- Table: login_logs
 CREATE TABLE login_logs (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     login_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     ip_address VARCHAR(45),
     user_agent TEXT,
-    status VARCHAR(20) -- e.g., 'success', 'failure'
+    status VARCHAR(20)
 );

@@ -45,7 +45,7 @@ exports.markAttendance = async (req, res) => {
         const { id } = req.params;
         const { is_present } = req.body;
         const today = new Date().toISOString().split('T')[0];
-        const now = new Date().toISOString(); // Full timestamp with time
+        const now = new Date().toISOString();
 
         const attendance = await db.query(`
             INSERT INTO attendance (student_id, date, is_present, recorded_at) 

@@ -68,7 +68,15 @@ const editStudentSchema = Joi.object({
   is_active: Joi.boolean().optional(),
 }).options({ stripUnknown: true });
 
+const markAttendanceSchema = Joi.object({
+  is_present: Joi.boolean().required().messages({
+    'any.required': 'is_present field is required',
+    'boolean.base': 'is_present must be a boolean',
+  }),
+});
+
 exports.validateRegistration = createValidator(registrationSchema);
 exports.validateLogin = createValidator(loginSchema);
 exports.validateAddStudent = createValidator(addStudentSchema);
 exports.validateEditStudent = createValidator(editStudentSchema);
+exports.validateMarkAttendance = createValidator(markAttendanceSchema);
