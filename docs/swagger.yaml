@@ -1,0 +1,974 @@
+openapi: 3.0.0
+info:
+  title: Teacher-Student Management API
+  version: 1.0.0
+  description: API documentation for the Teacher-Student Management platform backend.
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Development server
+tags:
+  - name: Auth
+    description: User authentication related endpoints
+  - name: Teachers
+    description: Teacher management endpoints
+  - name: Students
+    description: Student management endpoints
+  - name: Attendance
+    description: Attendance management endpoints
+  - name: Logs
+    description: Login activity logs
+paths:
+  /auth/register:
+    post:
+      summary: Register a new teacher
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - email
+                - password
+                - mobile
+              properties:
+                username:
+                  type: string
+                  example: teacher1
+                email:
+                  type: string
+                  format: email
+                  example: teacher1@example.com
+                password:
+                  type: string
+                  format: password
+                  example: password123
+                mobile:
+                  type: string
+                  example: "+1234567890"
+      responses:
+        "201":
+          description: Teacher registered successfully
+        "400":
+          description: Bad request, validation error or duplicate user
+  /auth/login:
+    post:
+      summary: Login a user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: teacher1
+                password:
+                  type: string
+                  format: password
+                  example: password123
+      responses:
+        "200":
+          description: User logged in successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        "401":
+          description: Unauthorized, invalid credentials
+  /teachers/dashboard:
+    get:
+      summary: Get teacher dashboard statistics
+      tags: [Teachers]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalStudents:
+                    type: integer
+                    example: 100
+                  presentToday:
+                    type: integer
+                    example: 80
+                  absentToday:
+                    type: integer
+                    example: 20
+        "401":
+          description: Unauthorized, no token or invalid token
+        "403":
+          description: Forbidden, insufficient permissions
+  /teachers/students/upload:
+    post:
+      summary: Upload students from a CSV file
+      tags: [Teachers]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                csvFile:
+                  type: string
+                  format: binary
+                  description: CSV file containing student data. Each row should have username, email, password, mobile, first_name, last_name, date_of_birth (optional), address (optional).
+      responses:
+        "200":
+          description: Students uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Students uploaded successfully
+                  newStudentsCount:
+                    type: integer
+                    example: 5
+                  duplicateUsersCount:
+                    type: integer
+                    example: 2
+                  newStudents:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        userId:
+                          type: integer
+                        studentId:
+                          type: integer
+                        username:
+                          type: string
+                        email:
+                          type: string
+                  duplicateUsers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        student:
+                          type: object
+                        reason:
+                          type: string
+        "400":
+          description: Bad request, e.g., no file uploaded or invalid file type
+        "401":
+          description: Unauthorized, no token or invalid token
+        "403":
+          description: Forbidden, insufficient permissions
+  /teachers/students/download:
+    get:
+      summary: Download student list as CSV
+      tags: [Teachers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: filterBy
+          schema:
+            type: string
+            enum: [username, email, mobile, first_name, last_name]
+          description: Field to filter students by (e.g., username, email)
+        - in: query
+          name: filterValue
+          schema:
+            type: string
+          description: Value to filter by (case-insensitive partial match)
+      responses:
+        "200":
+          description: CSV file of students
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Unauthorized, no token or invalid token
+        "403":
+          description: Forbidden, insufficient permissions
+        "404":
+          description: No students found matching the criteria
+  /teachers/students:
+    get:
+      summary: Get list of students with pagination, filtering, and sorting
+      tags: [Teachers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: Page number for pagination (default: 1)
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            enum: [5, 10, 20]
+          description: Number of students per page (default: 10)
+        - in: query
+          name: filterBy
+          schema:
+            type: string
+            enum: [username, email, mobile, first_name, last_name, is_active]
+          description: Field to filter students by
+        - in: query
+          name: filterValue
+          schema:
+            type: string
+          description: Value to filter by (case-insensitive partial match)
+        - in: query
+          name: sortBy
+          schema:
+            type: string
+            enum: [username, email, mobile, first_name, last_name, is_active]
+          description: Field to sort students by
+        - in: query
+          name: sortOrder
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: Sort order (asc or desc, default: asc)
+      responses:
+        "200":
+          description: List of students retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  students:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        user_id:
+                          type: integer
+                        username:
+                          type: string
+                        email:
+                          type: string
+                        mobile:
+                          type: string
+                        is_active:
+                          type: boolean
+                        student_id:
+                          type: integer
+                        first_name:
+                          type: string
+                        last_name:
+                          type: string
+                        date_of_birth:
+                          type: string
+                          format: date
+                        address:
+                          type: string
+                  pagination:
+                    type: object
+                    properties:
+                      totalStudents:
+                        type: integer
+                      currentPage:
+                        type: integer
+                      perPage:
+                        type: integer
+                      totalPages:
+                        type: integer
+        "401":
+          description: Unauthorized, no token or invalid token
+        "403":
+          description: Forbidden, insufficient permissions
+        "500":
+          description: Server error
+    post:
+      summary: Add a new student
+      tags: [Teachers]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - email
+                - password
+                - mobile
+                - first_name
+                - last_name
+              properties:
+                username:
+                  type: string
+                  example: student_user
+                email:
+                  type: string
+                  format: email
+                  example: student@example.com
+                password:
+                  type: string
+                  format: password
+                  example: studentpass
+                mobile:
+                  type: string
+                  example: "+1122334455"
+                first_name:
+                  type: string
+                  example: John
+                last_name:
+                  type: string
+                  example: Doe
+                date_of_birth:
+                  type: string
+                  format: date
+                  example: "2005-01-15"
+                address:
+                  type: string
+                  example: "123 Main St, Anytown"
+      responses:
+        "201":
+          description: Student added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Student added successfully
+                  student:
+                    type: object
+                    properties:
+                      user_id:
+                        type: integer
+                      student_id:
+                        type: integer
+                      username:
+                        type: string
+                      email:
+                        type: string
+                      mobile:
+                        type: string
+                      first_name:
+                        type: string
+                      last_name:
+                        type: string
+        "400":
+          description: Bad request, validation error or duplicate user
+        "401":
+          description: Unauthorized, no token or invalid token
+        "403":
+          description: Forbidden, insufficient permissions
+  /teachers/students/{id}:
+    put:
+      summary: Update an existing student's details
+      tags: [Teachers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+          description: The ID of the student to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: updated_student_user
+                email:
+                  type: string
+                  format: email
+                  example: updated_student@example.com
+                mobile:
+                  type: string
+                  example: "+1987654321"
+                first_name:
+                  type: string
+                  example: Jane
+                last_name:
+                  type: string
+                  example: Doe
+                date_of_birth:
+                  type: string
+                  format: date
+                  example: "2004-12-25"
+                address:
+                  type: string
+                  example: "456 Oak Ave, Another City"
+                is_active:
+                  type: boolean
+                  example: true
+      responses:
+        "200":
+          description: Student updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Student updated successfully
+                  user:
+                    type: object
+                    properties:
+                      username:
+                        type: string
+                      email:
+                        type: string
+                      mobile:
+                        type: string
+                      is_active:
+                        type: boolean
+                  student:
+                    type: object
+                    properties:
+                      first_name:
+                        type: string
+                      last_name:
+                        type: string
+                      date_of_birth:
+                        type: string
+                        format: date
+                      address:
+                        type: string
+        "400":
+          description: Bad request, validation error or duplicate user details
+        "401":
+          description: Unauthorized, no token or invalid token
+        "403":
+          description: Forbidden, insufficient permissions
+        "404":
+          description: Student not found
+  /teachers/students/{id}/deactivate:
+    put:
+      summary: Deactivate a student account
+      tags: [Teachers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+          description: The ID of the student to deactivate
+      responses:
+        "200":
+          description: Student deactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Student deactivated successfully
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      username:
+                        type: string
+                      email:
+                        type: string
+                      is_active:
+                        type: boolean
+        "401":
+          description: Unauthorized, no token or invalid token
+        "403":
+          description: Forbidden, insufficient permissions
+        "404":
+          description: Student not found
+  /teachers/attendance:
+    get:
+      summary: Get attendance records for all students with pagination and filtering
+      tags: [Attendance]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+          description: Page number for pagination (default: 1)
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            enum: [5, 10, 20]
+          description: Number of records per page (default: 10)
+        - in: query
+          name: studentId
+          schema:
+            type: integer
+          description: Filter by student ID
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          description: Filter records from this date (YYYY-MM-DD)
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          description: Filter records up to this date (YYYY-MM-DD)
+        - in: query
+          name: isPresent
+          schema:
+            type: boolean
+          description: Filter by presence status (true for present, false for absent)
+      responses:
+        "200":
+          description: Attendance records retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  attendanceRecords:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        attendance_id:
+                          type: integer
+                        date:
+                          type: string
+                          format: date
+                        is_present:
+                          type: boolean
+                        recorded_at:
+                          type: string
+                          format: date-time
+                        student_id:
+                          type: integer
+                        first_name:
+                          type: string
+                        last_name:
+                          type: string
+                        student_username:
+                          type: string
+                  pagination:
+                    type: object
+                    properties:
+                      totalRecords:
+                        type: integer
+                      currentPage:
+                        type: integer
+                      perPage:
+                        type: integer
+                      totalPages:
+                        type: integer
+        "401":
+          description: Unauthorized, no token or invalid token
+        "403":
+          description: Forbidden, insufficient permissions
+        "500":
+          description: Server error
+  
+  /students/profile/{id}:
+    get:
+      summary: Get student profile with attendance summary
+      tags: [Students]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Student ID
+      responses:
+        "200":
+          description: Student profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+                  user_id:
+                    type: integer
+                    example: 123
+                  first_name:
+                    type: string
+                    example: "John"
+                  last_name:
+                    type: string
+                    example: "Doe"
+                  date_of_birth:
+                    type: string
+                    format: date
+                    example: "2005-03-15"
+                  address:
+                    type: string
+                    example: "123 Main St, City, State"
+                  username:
+                    type: string
+                    example: "john_doe"
+                  email:
+                    type: string
+                    format: email
+                    example: "john@example.com"
+                  mobile:
+                    type: string
+                    example: "+1234567890"
+                  present_days:
+                    type: integer
+                    example: 45
+                  absent_days:
+                    type: integer
+                    example: 5
+                  created_at:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                  updated_at:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+        "401":
+          description: Unauthorized, no token or invalid token
+        "403":
+          description: Forbidden, insufficient permissions
+        "404":
+          description: Student not found
+        "500":
+          description: Server error
+
+  /students/mark-attendance/{id}:
+    post:
+      summary: Mark or update student attendance for today
+      description: Students can mark their attendance for the current day. If attendance already exists for today, it will be updated.
+      tags: [Attendance]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
+          description: Student ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - is_present
+              properties:
+                is_present:
+                  type: boolean
+                  example: true
+                  description: true for present, false for absent
+      responses:
+        "200":
+          description: Attendance marked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Attendance marked successfully"
+                  attendance:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      student_id:
+                        type: integer
+                        example: 1
+                      date:
+                        type: string
+                        format: date
+                        example: "2024-01-15"
+                      is_present:
+                        type: boolean
+                        example: true
+                      recorded_at:
+                        type: string
+                        format: date-time
+                        example: "2024-01-15T09:30:00Z"
+        "400":
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "is_present field is required"
+        "401":
+          description: Unauthorized, no token or invalid token
+        "403":
+          description: Forbidden, insufficient permissions
+        "500":
+          description: Server error
+
+  /students/today-attendance/{id}:
+    get:
+      summary: Get today's attendance status for a student
+      description: Retrieve the attendance record for the current day. Returns null if no attendance marked for today.
+      tags: [Attendance]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
+          description: Student ID
+      responses:
+        "200":
+          description: Today's attendance retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  today_attendance:
+                    oneOf:
+                      - type: object
+                        properties:
+                          id:
+                            type: integer
+                            example: 1
+                          is_present:
+                            type: boolean
+                            example: true
+                          recorded_at:
+                            type: string
+                            format: date-time
+                            example: "2024-01-15T09:30:00Z"
+                      - type: "null"
+                        example: null
+        "401":
+          description: Unauthorized, no token or invalid token
+        "403":
+          description: Forbidden, insufficient permissions
+        "500":
+          description: Server error
+
+  /students/edit-profile/{id}:
+    put:
+      summary: Update student profile information
+      description: Update student's personal information including name, date of birth, and address.
+      tags: [Students]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
+          description: Student ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - first_name
+                - last_name
+              properties:
+                first_name:
+                  type: string
+                  example: "John"
+                  description: Student's first name
+                last_name:
+                  type: string
+                  example: "Doe"
+                  description: Student's last name
+                date_of_birth:
+                  type: string
+                  format: date
+                  example: "2005-03-15"
+                  description: Student's date of birth (YYYY-MM-DD)
+                address:
+                  type: string
+                  example: "123 Main St, City, State"
+                  description: Student's residential address
+      responses:
+        "200":
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Profile updated successfully"
+                  student:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      first_name:
+                        type: string
+                        example: "John"
+                      last_name:
+                        type: string
+                        example: "Doe"
+                      date_of_birth:
+                        type: string
+                        format: date
+                        example: "2005-03-15"
+                      address:
+                        type: string
+                        example: "123 Main St, City, State"
+                      updated_at:
+                        type: string
+                        format: date-time
+                        example: "2024-01-15T14:30:00Z"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "First name and last name are required"
+        "401":
+          description: Unauthorized, no token or invalid token
+        "403":
+          description: Forbidden, insufficient permissions
+        "404":
+          description: Student not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Student not found"
+        "500":
+          description: Server error
+
+  /students/login-activity/{id}:
+    get:
+      summary: Get student login activity for the last 3 days
+      description: Retrieve the login history including timestamps, IP addresses, and login status for the past 3 days.
+      tags: [Logs]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            example: 1
+          description: Student ID
+      responses:
+        "200":
+          description: Login activity retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  login_activity:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        login_time:
+                          type: string
+                          format: date-time
+                          example: "2024-01-15T09:30:25.123Z"
+                        ip_address:
+                          type: string
+                          example: "192.168.1.100"
+                        user_agent:
+                          type: string
+                          example: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                        status:
+                          type: string
+                          enum: [success, failure]
+                          example: "success"
+                  total_count:
+                    type: integer
+                    example: 5
+                  period:
+                    type: string
+                    example: "last_3_days"
+                  id:
+                    type: integer
+                    example: 1
+        "401":
+          description: Unauthorized, no token or invalid token
+        "403":
+          description: Forbidden, insufficient permissions
+        "404":
+          description: Student not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Student not found"
+        "500":
+          description: Server error 
