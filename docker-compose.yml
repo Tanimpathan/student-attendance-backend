@@ -11,6 +11,34 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  app:
+    build: .
+    container_name: student-attendance-app
+    environment:
+      NODE_ENV: development
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: student_attendance_dev
+      DB_USER: postgres
+      DB_PASSWORD: password123
+      JWT_SECRET: supersecretjwtkey
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+    command: npm run dev
 
 volumes:
   postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
