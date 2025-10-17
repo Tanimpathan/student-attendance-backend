@@ -8,11 +8,15 @@ const createValidator = (schema) => (req, res, next) => {
   });
 
   if (error) {
-    req.validationErrors = error.details.map((d) => ({ msg: d.message, param: d.path.join('.') }));
-  } else {
-    req.body = value;
+    return res.status(400).json({ 
+      errors: error.details.map((d) => ({ 
+        msg: d.message, 
+        param: d.path.join('.') 
+      }))
+    });
   }
 
+  req.body = value;
   next();
 };
 
@@ -68,10 +72,3 @@ exports.validateRegistration = createValidator(registrationSchema);
 exports.validateLogin = createValidator(loginSchema);
 exports.validateAddStudent = createValidator(addStudentSchema);
 exports.validateEditStudent = createValidator(editStudentSchema);
-
-exports.validateResult = (req, res, next) => {
-  if (req.validationErrors && Array.isArray(req.validationErrors) && req.validationErrors.length > 0) {
-    return res.status(400).json({ errors: req.validationErrors });
-  }
-  next();
-};

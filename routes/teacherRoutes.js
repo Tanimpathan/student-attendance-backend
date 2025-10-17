@@ -3,7 +3,7 @@ const { getDashboardStats, uploadStudents, downloadStudents, getStudents, addStu
 const { authenticateToken, authorizeRoles } = require('../middleware/authMiddleware');
 const multer = require('multer');
 const path = require('path');
-const { validateAddStudent, validateResult, validateEditStudent } = require('../middleware/validationMiddleware');
+const { validateAddStudent, validateEditStudent } = require('../middleware/validationMiddleware');
 
 const router = express.Router();
 
@@ -23,8 +23,8 @@ router.get('/dashboard', authenticateToken, authorizeRoles(['teacher']), getDash
 router.post('/students/upload', authenticateToken, authorizeRoles(['teacher']), upload.single('csvFile'), uploadStudents);
 router.get('/students/download', authenticateToken, authorizeRoles(['teacher']), downloadStudents);
 router.get('/students', authenticateToken, authorizeRoles(['teacher']), getStudents);
-router.post('/students', authenticateToken, authorizeRoles(['teacher']), validateAddStudent, validateResult, addStudent);
-router.put('/students/:id', authenticateToken, authorizeRoles(['teacher']), validateEditStudent, validateResult, editStudent);
+router.post('/students', authenticateToken, authorizeRoles(['teacher']), validateAddStudent, addStudent);
+router.put('/students/:id', authenticateToken, authorizeRoles(['teacher']), validateEditStudent, editStudent);
 router.put('/students/:id/deactivate', authenticateToken, authorizeRoles(['teacher']), deactivateStudent);
 router.get('/attendance', authenticateToken, authorizeRoles(['teacher']), getAttendanceRecords);
 router.get('/login-activity', authenticateToken, authorizeRoles(['teacher']), getTeacherLoginActivity);
