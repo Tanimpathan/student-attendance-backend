@@ -1,45 +1,77 @@
-const { validationResult, check } = require('express-validator');
+const Joi = require('joi');
 
-exports.validateRegistration = [
-  check('username', 'Username is required').not().isEmpty(),
-  check('username', 'Username must be at least 3 characters long').isLength({ min: 3 }),
-  check('email', 'Please include a valid email').isEmail(),
-  check('password', 'Password must be at least 6 characters long').isLength({ min: 6 }),
-  check('mobile', 'Mobile number is required').not().isEmpty(),
-  check('mobile', 'Please include a valid mobile number').isMobilePhone(),
-];
+const createValidator = (schema) => (req, res, next) => {
+  const { error, value } = schema.validate(req.body || {}, {
+    abortEarly: false,
+    convert: true,
+    allowUnknown: false,
+  });
 
-exports.validateLogin = [
-  check('username', 'Username is required').not().isEmpty(),
-  check('password', 'Password is required').not().isEmpty(),
-];
-
-exports.validateAddStudent = [
-  check('username', 'Username is required').not().isEmpty(),
-  check('username', 'Username must be at least 3 characters long').isLength({ min: 3 }),
-  check('email', 'Please include a valid email').isEmail(),
-  check('password', 'Password must be at least 6 characters long').isLength({ min: 6 }),
-  check('mobile', 'Mobile number is required').not().isEmpty(),
-  check('mobile', 'Please include a valid mobile number').isMobilePhone(),
-  check('first_name', 'First name is required').not().isEmpty(),
-  check('last_name', 'Last name is required').not().isEmpty(),
-  check('date_of_birth', 'Invalid date of birth').optional({ checkFalsy: true }).isISO8601().toDate(),
-];
-
-exports.validateResult = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
+  if (error) {
+    req.validationErrors = error.details.map((d) => ({ msg: d.message, param: d.path.join('.') }));
+  } else {
+    req.body = value;
   }
+
   next();
 };
 
-exports.validateEditStudent = [
-  check('username', 'Username must be at least 3 characters long').optional({ checkFalsy: true }).isLength({ min: 3 }),
-  check('email', 'Please include a valid email').optional({ checkFalsy: true }).isEmail(),
-  check('mobile', 'Please include a valid mobile number').optional({ checkFalsy: true }).isMobilePhone(),
-  check('first_name', 'First name must not be empty').optional({ checkFalsy: true }).not().isEmpty(),
-  check('last_name', 'Last name must not be empty').optional({ checkFalsy: true }).not().isEmpty(),
-  check('date_of_birth', 'Invalid date of birth').optional({ checkFalsy: true }).isISO8601().toDate(),
-  check('is_active', 'is_active must be a boolean').optional({ checkFalsy: true }).isBoolean().toBoolean(),
-];
+const mobilePattern = /^\+?[0-9]{7,15}$/;
+
+const registrationSchema = Joi.object({
+  username: Joi.string().min(3).required().messages({
+    'string.base': 'Username must be a string',
+    'string.empty': 'Username is required',
+    'string.min': 'Username must be at least 3 characters long',
+    'any.required': 'Username is required',
+  }),
+  email: Joi.string().email().required().messages({
+    'string.email': 'Please include a valid email',
+    'any.required': 'Email is required',
+  }),
+  password: Joi.string().min(6).required().messages({
+    'string.min': 'Password must be at least 6 characters long',
+    'any.required': 'Password is required',
+  }),
+  mobile: Joi.string().pattern(mobilePattern).required().messages({
+    'string.pattern.base': 'Please include a valid mobile number',
+    'any.required': 'Mobile number is required',
+  }),
+});
+
+const loginSchema = Joi.object({
+  username: Joi.string().required().messages({ 'any.required': 'Username is required', 'string.empty': 'Username is required' }),
+  password: Joi.string().required().messages({ 'any.required': 'Password is required', 'string.empty': 'Password is required' }),
+});
+
+const addStudentSchema = Joi.object({
+  username: Joi.string().min(3).required().messages({ 'string.min': 'Username must be at least 3 characters long', 'any.required': 'Username is required' }),
+  email: Joi.string().email().required().messages({ 'string.email': 'Please include a valid email', 'any.required': 'Email is required' }),
+  password: Joi.string().min(6).required().messages({ 'string.min': 'Password must be at least 6 characters long', 'any.required': 'Password is required' }),
+  mobile: Joi.string().pattern(mobilePattern).required().messages({ 'string.pattern.base': 'Please include a valid mobile number', 'any.required': 'Mobile number is required' }),
+  first_name: Joi.string().required().messages({ 'any.required': 'First name is required', 'string.empty': 'First name is required' }),
+  last_name: Joi.string().required().messages({ 'any.required': 'Last name is required', 'string.empty': 'Last name is required' }),
+  date_of_birth: Joi.date().iso().optional().messages({ 'date.format': 'Invalid date of birth' }),
+});
+
+const editStudentSchema = Joi.object({
+  username: Joi.string().min(3).optional().allow('').messages({ 'string.min': 'Username must be at least 3 characters long' }),
+  email: Joi.string().email().optional().allow('').messages({ 'string.email': 'Please include a valid email' }),
+  mobile: Joi.string().pattern(mobilePattern).optional().allow('').messages({ 'string.pattern.base': 'Please include a valid mobile number' }),
+  first_name: Joi.string().optional().allow('').messages({}),
+  last_name: Joi.string().optional().allow('').messages({}),
+  date_of_birth: Joi.date().iso().optional().allow('', null).messages({ 'date.format': 'Invalid date of birth' }),
+  is_active: Joi.boolean().optional(),
+}).options({ stripUnknown: true });
+
+exports.validateRegistration = createValidator(registrationSchema);
+exports.validateLogin = createValidator(loginSchema);
+exports.validateAddStudent = createValidator(addStudentSchema);
+exports.validateEditStudent = createValidator(editStudentSchema);
+
+exports.validateResult = (req, res, next) => {
+  if (req.validationErrors && Array.isArray(req.validationErrors) && req.validationErrors.length > 0) {
+    return res.status(400).json({ errors: req.validationErrors });
+  }
+  next();
+};
