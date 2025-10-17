@@ -680,7 +680,7 @@ paths:
     post:
       summary: Mark or update student attendance for today
       description: Students can mark their attendance for the current day. If attendance already exists for today, it will be updated.
-      tags: [Attendance]
+      tags: [Students, Attendance]
       security:
         - bearerAuth: []
       parameters:
@@ -757,7 +757,7 @@ paths:
     get:
       summary: Get today's attendance status for a student
       description: Retrieve the attendance record for the current day. Returns null if no attendance marked for today.
-      tags: [Attendance]
+      tags: [Students, Attendance]
       security:
         - bearerAuth: []
       parameters:
@@ -778,21 +778,19 @@ paths:
                 type: object
                 properties:
                   today_attendance:
-                    oneOf:
-                      - type: object
-                        properties:
-                          id:
-                            type: integer
-                            example: 1
-                          is_present:
-                            type: boolean
-                            example: true
-                          recorded_at:
-                            type: string
-                            format: date-time
-                            example: "2024-01-15T09:30:00Z"
-                      - type: "null"
-                        example: null
+                    type: object
+                    nullable: true
+                    properties:
+                      id:
+                        type: integer
+                        example: 1
+                      is_present:
+                        type: boolean
+                        example: true
+                      recorded_at:
+                        type: string
+                        format: date-time
+                        example: "2024-01-15T09:30:00Z"
         "401":
           description: Unauthorized, no token or invalid token
         "403":
@@ -908,7 +906,7 @@ paths:
     get:
       summary: Get student login activity for the last 3 days
       description: Retrieve the login history including timestamps, IP addresses, and login status for the past 3 days.
-      tags: [Logs]
+      tags: [Students, Logs]
       security:
         - bearerAuth: []
       parameters:
@@ -972,3 +970,10 @@ paths:
                     example: "Student not found"
         "500":
           description: Server error 
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
