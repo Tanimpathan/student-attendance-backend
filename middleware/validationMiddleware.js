@@ -56,6 +56,7 @@ const addStudentSchema = Joi.object({
   first_name: Joi.string().required().messages({ 'any.required': 'First name is required', 'string.empty': 'First name is required' }),
   last_name: Joi.string().required().messages({ 'any.required': 'Last name is required', 'string.empty': 'Last name is required' }),
   date_of_birth: Joi.date().iso().optional().messages({ 'date.format': 'Invalid date of birth' }),
+  address: Joi.string().optional().allow('').messages({}),
 });
 
 const editStudentSchema = Joi.object({
@@ -65,6 +66,7 @@ const editStudentSchema = Joi.object({
   first_name: Joi.string().optional().allow('').messages({}),
   last_name: Joi.string().optional().allow('').messages({}),
   date_of_birth: Joi.date().iso().optional().allow('', null).messages({ 'date.format': 'Invalid date of birth' }),
+  address: Joi.string().optional().allow('').messages({}),
   is_active: Joi.boolean().optional(),
 }).options({ stripUnknown: true });
 

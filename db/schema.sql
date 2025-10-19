@@ -40,3 +40,9 @@ CREATE TABLE login_logs (
     user_agent TEXT,
     status VARCHAR(20)
 );
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_students_user_id ON students(user_id);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_attendance_student_id_date ON attendance(student_id, date DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_attendance_date ON attendance(date DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_login_logs_user_id_time ON login_logs(user_id, login_time DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_login_logs_login_time ON login_logs(login_time DESC);

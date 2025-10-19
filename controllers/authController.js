@@ -33,7 +33,6 @@ exports.registerTeacher = async (req, res) => {
   }
 };
 
-// Helper function for logging login attempts
 const logLoginAttempt = async (userId, ipAddress, userAgent, status) => {
   try {
     await db.query(
@@ -82,6 +81,25 @@ exports.loginUser = async (req, res) => {
     // Log successful login
     await logLoginAttempt(user.id, ipAddress, userAgent, 'success');
 
+    const userData = { 
+      id: user.id, 
+      username: user.username, 
+      email: user.email, 
+      role: user.role 
+    };
+
+    // If user is a student, fetch student ID from student table
+    if (user.role === 'student') {
+      const studentResult = await db.query(
+        'SELECT id FROM students WHERE user_id = $1',
+        [user.id]
+      );
+      
+      if (studentResult.rows[0]) {
+        userData.student_id = studentResult.rows[0].id;
+      }
+    }
+
     // Generate JWT token
     const token = jwt.sign(
       { id: user.id, role: user.role },
@@ -91,12 +109,7 @@ exports.loginUser = async (req, res) => {
 
     res.status(200).json({ 
       token, 
-      user: { 
-        id: user.id, 
-        username: user.username, 
-        email: user.email, 
-        role: user.role 
-      } 
+      user: userData
     });
     
   } catch (error) {

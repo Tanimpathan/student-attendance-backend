@@ -55,7 +55,7 @@ exports.uploadStudents = async (req, res) => {
     for (const student of studentsData) {
       const { username, email, password, mobile, first_name, last_name, date_of_birth, address } = student;
 
-      // Basic validation
+      // validation
       if (!username || !email || !password || !mobile || !first_name || !last_name) {
         duplicateUsers.push({ student, reason: 'Missing required fields' });
         continue;
@@ -308,7 +308,6 @@ exports.editStudent = async (req, res) => {
   const { username, email, mobile, first_name, last_name, date_of_birth, address, is_active } = req.body;
 
   try {
-    // Check if the student exists and retrieve their current user_id
     const studentResult = await db.query(
       'SELECT user_id FROM students WHERE id = $1',
       [id]
@@ -375,7 +374,6 @@ exports.deactivateStudent = async (req, res) => {
   const { id } = req.params;
 
   try {
-    // Check if the student exists and retrieve their user_id
     const studentResult = await db.query(
       'SELECT user_id FROM students WHERE id = $1',
       [id]

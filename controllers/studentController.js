@@ -99,7 +99,6 @@ exports.editProfile = async (req, res) => {
             });
         }
 
-        // Validate student exists
         const existingStudent = await db.query(
             'SELECT id FROM students WHERE id = $1', 
             [id]

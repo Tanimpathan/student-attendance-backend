@@ -1,0 +1,6 @@
+username,email,password,mobile,first_name,last_name,date_of_birth,address
+maria_lopez,maria@school.com,test1234!,1234500002,Maria,Lopez,1122222222000,"89, Green Park, Banani, Dhaka"
+kevin_hill,kevin@school.com,test1234!,1234500003,Kevin,Hill,1133333333000,"45, Oak Street, Gulshan-1, Dhaka"
+sofia_ali,sofia@school.com,test1234!,1234500004,Sofia,Ali,1144444444000,"22B, North Road, Badda, Dhaka"
+emma_watson,emma@school.com,test1234!,1234500007,Emma,Watson,1177777777000,"B-12, Green Valley, Uttara, Dhaka"
+

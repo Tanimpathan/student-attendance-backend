@@ -602,7 +602,7 @@ paths:
         "500":
           description: Server error
   
-  /students/profile/{id}:
+  /student/profile/{id}:
     get:
       summary: Get student profile with attendance summary
       tags: [Students]
@@ -676,7 +676,7 @@ paths:
         "500":
           description: Server error
 
-  /students/mark-attendance/{id}:
+  /student/mark-attendance/{id}:
     post:
       summary: Mark or update student attendance for today
       description: Students can mark their attendance for the current day. If attendance already exists for today, it will be updated.
@@ -753,7 +753,7 @@ paths:
         "500":
           description: Server error
 
-  /students/today-attendance/{id}:
+  /student/today-attendance/{id}:
     get:
       summary: Get today's attendance status for a student
       description: Retrieve the attendance record for the current day. Returns null if no attendance marked for today.
@@ -798,7 +798,7 @@ paths:
         "500":
           description: Server error
 
-  /students/edit-profile/{id}:
+  /student/edit-profile/{id}:
     put:
       summary: Update student profile information
       description: Update student's personal information including name, date of birth, and address.
@@ -902,7 +902,7 @@ paths:
         "500":
           description: Server error
 
-  /students/login-activity/{id}:
+  /student/login-activity/{id}:
     get:
       summary: Get student login activity for the last 3 days
       description: Retrieve the login history including timestamps, IP addresses, and login status for the past 3 days.
