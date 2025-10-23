@@ -109,3 +109,14 @@
     at /app/node_modules/pg-pool/index.js:45:11
     at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
     at async exports.getTodayAttendance (/app/controllers/studentController.js:75:28)
+2025-10-22 15:09:56 error: TypeError: db.connect is not a function
+    at exports.downloadStudents (/app/controllers/teacherController.js:204:23)
+    at Layer.handleRequest (/app/node_modules/router/lib/layer.js:152:17)
+    at next (/app/node_modules/router/lib/route.js:157:13)
+    at /app/middleware/authMiddleware.js:24:3
+    at Layer.handleRequest (/app/node_modules/router/lib/layer.js:152:17)
+    at next (/app/node_modules/router/lib/route.js:157:13)
+    at /app/middleware/authMiddleware.js:16:5
+    at /app/node_modules/jsonwebtoken/verify.js:261:12
+    at getSecret (/app/node_modules/jsonwebtoken/verify.js:97:14)
+    at module.exports [as verify] (/app/node_modules/jsonwebtoken/verify.js:101:10)

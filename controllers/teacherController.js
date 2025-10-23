@@ -3,6 +3,8 @@ const logger = require('../utils/logger');
 const bcrypt = require('bcrypt');
 const { parseCsv } = require('../utils/csvParser');
 const { stringify } = require('csv-stringify');
+const QueryStream = require('pg-query-stream');
+const { Transform } = require('stream');
 const fs = require('fs');
 
 exports.getDashboardStats = async (req, res) => {
@@ -104,9 +106,74 @@ exports.uploadStudents = async (req, res) => {
   }
 };
 
+// exports.downloadStudents = async (req, res) => {
+//   try {
+//     const { filterBy, filterValue } = req.query;
+//     let query = `SELECT
+//         u.username,
+//         u.email,
+//         u.mobile,
+//         s.first_name,
+//         s.last_name,
+//         s.date_of_birth,
+//         s.address
+//       FROM users u
+//       JOIN students s ON u.id = s.user_id
+//       WHERE u.role = 'student'`;
+//     const queryParams = [];
+
+//     if (filterBy && filterValue) {
+//       if (filterBy === 'username') {
+//         query += ` AND u.username ILIKE $1`;
+//         queryParams.push(`%${filterValue}%`);
+//       } else if (filterBy === 'email') {
+//         query += ` AND u.email ILIKE $1`;
+//         queryParams.push(`%${filterValue}%`);
+//       } else if (filterBy === 'mobile') {
+//         query += ` AND u.mobile ILIKE $1`;
+//         queryParams.push(`%${filterValue}%`);
+//       } else if (filterBy === 'first_name') {
+//         query += ` AND s.first_name ILIKE $1`;
+//         queryParams.push(`%${filterValue}%`);
+//       } else if (filterBy === 'last_name') {
+//         query += ` AND s.last_name ILIKE $1`;
+//         queryParams.push(`%${filterValue}%`);
+//       }
+//     }
+
+//     const studentsResult = await db.query(query, queryParams);
+//     const students = studentsResult.rows;
+
+//     if (students.length === 0) {
+//       return res.status(404).json({ message: 'No students found matching the criteria.' });
+//     }
+
+//     stringify(students, { header: true }, (err, output) => {
+//       if (err) {
+//         logger.error('Error stringifying CSV:', err);
+//         return res.status(500).json({ message: 'Error generating CSV' });
+//       }
+//       res.header('Content-Type', 'text/csv');
+//       res.attachment('students.csv');
+//       res.send(output);
+//     });
+
+//   } catch (error) {
+//     logger.error('Error downloading students:', error);
+//     res.status(500).json({ message: 'Server error' });
+//   }
+// };
+
 exports.downloadStudents = async (req, res) => {
+  let client;
+  
   try {
     const { filterBy, filterValue } = req.query;
+    
+    // Set headers first
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="students.csv"');
+    
     let query = `SELECT
         u.username,
         u.email,
@@ -118,47 +185,89 @@ exports.downloadStudents = async (req, res) => {
       FROM users u
       JOIN students s ON u.id = s.user_id
       WHERE u.role = 'student'`;
+    
     const queryParams = [];
-
     if (filterBy && filterValue) {
-      if (filterBy === 'username') {
-        query += ` AND u.username ILIKE $1`;
-        queryParams.push(`%${filterValue}%`);
-      } else if (filterBy === 'email') {
-        query += ` AND u.email ILIKE $1`;
-        queryParams.push(`%${filterValue}%`);
-      } else if (filterBy === 'mobile') {
-        query += ` AND u.mobile ILIKE $1`;
-        queryParams.push(`%${filterValue}%`);
-      } else if (filterBy === 'first_name') {
-        query += ` AND s.first_name ILIKE $1`;
-        queryParams.push(`%${filterValue}%`);
-      } else if (filterBy === 'last_name') {
-        query += ` AND s.last_name ILIKE $1`;
+      if (['username', 'email', 'mobile', 'first_name', 'last_name'].includes(filterBy)) {
+        if (filterBy === 'first_name' || filterBy === 'last_name') {
+          query += ` AND s.${filterBy} ILIKE $${queryParams.length + 1}`;
+        } else {
+          query += ` AND u.${filterBy} ILIKE $${queryParams.length + 1}`;
+        }
         queryParams.push(`%${filterValue}%`);
       }
     }
 
-    const studentsResult = await db.query(query, queryParams);
-    const students = studentsResult.rows;
-
-    if (students.length === 0) {
-      return res.status(404).json({ message: 'No students found matching the criteria.' });
-    }
-
-    stringify(students, { header: true }, (err, output) => {
-      if (err) {
-        logger.error('Error stringifying CSV:', err);
-        return res.status(500).json({ message: 'Error generating CSV' });
+    client = await db.pool.connect();
+    
+    const queryStream = new QueryStream(query, queryParams);
+    const stream = client.query(queryStream);
+    
+    // CSV header
+    const header = 'username,email,mobile,first_name,last_name,date_of_birth,address\n';
+    res.write(header);
+    
+    // Transform each row to CSV
+    const csvTransform = new Transform({
+      objectMode: true,
+      transform(student, encoding, callback) {
+        try {
+          const row = [
+            student.username,
+            student.email,
+            student.mobile,
+            student.first_name,
+            student.last_name,
+            student.date_of_birth,
+            student.address
+          ].map(field => {
+            const fieldValue = field ? String(field) : '';
+            return `"${fieldValue.replace(/"/g, '""')}"`;
+          }).join(',');
+          
+          this.push(row + '\n');
+          callback();
+        } catch (error) {
+          callback(error);
+        }
       }
-      res.header('Content-Type', 'text/csv');
-      res.attachment('students.csv');
-      res.send(output);
     });
-
+    
+    // Handle stream errors
+    stream.on('error', (error) => {
+      logger.error('Query stream error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ message: 'Database error' });
+      } else {
+        res.end();
+      }
+      client.release();
+    });
+    
+    csvTransform.on('error', (error) => {
+      logger.error('CSV transform error:', error);
+      client.release();
+    });
+    
+    // Pipe the stream
+    stream
+      .pipe(csvTransform)
+      .pipe(res)
+      .on('finish', () => {
+        client.release();
+        logger.info('CSV download completed successfully');
+      })
+      .on('error', (error) => {
+        logger.error('Stream pipeline error:', error);
+        client.release();
+      });
+      
   } catch (error) {
-    logger.error('Error downloading students:', error);
-    res.status(500).json({ message: 'Server error' });
+    logger.error('Error setting up download:', error);
+    if (client) client.release();
+    if (!res.headersSent) {
+      res.status(500).json({ message: 'Server error' });
+    }
   }
 };
 
