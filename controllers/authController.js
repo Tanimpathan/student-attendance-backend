@@ -28,7 +28,15 @@ exports.registerTeacher = async (req, res) => {
 
     res.status(201).json({ message: 'Teacher registered successfully', user: newUser.rows[0] });
   } catch (error) {
-    console.error(error);
+    logger.error('Teacher registration failed', {
+      action: 'teacher_registration_error',
+      username,
+      email,
+      mobile,
+      error: error.message,
+      stack: error.stack,
+      errorCode: 'TEACHER_REG_001'
+    });
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -40,7 +48,16 @@ const logLoginAttempt = async (userId, ipAddress, userAgent, status) => {
       [userId, ipAddress, userAgent, status]
     );
   } catch (error) {
-    console.error('Failed to log login attempt:', error);
+    logger.error('Failed to log login attempt to database', {
+      action: 'login_attempt_log_failed',
+      userId,
+      ipAddress,
+      status,
+      error: error.message,
+      errorCode: error.code || 'DB_ERROR',
+      stack: process.env.NODE_ENV === 'production' ? undefined : error.stack,
+      logType: 'error'
+    });
   }
 };
 
@@ -113,7 +130,16 @@ exports.loginUser = async (req, res) => {
     });
     
   } catch (error) {
-    console.error(error);
+    logger.error('Login process failed with unexpected error', {
+      action: 'login_process_error',
+      username,
+      ipAddress,
+      error: error.message,
+      errorCode: 'LOGIN_001',
+      stack: process.env.NODE_ENV === 'production' ? undefined : error.stack,
+      errorType: error.name,
+      logType: 'error'
+    });
     res.status(500).json({ message: 'Server error' });
   }
 };
