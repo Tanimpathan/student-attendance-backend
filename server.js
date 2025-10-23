@@ -1,6 +1,7 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const logger = require('./utils/logger');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
 const swaggerDocument = YAML.load('./docs/swagger.yaml');
@@ -20,6 +21,10 @@ app.use(cors());
 
 // Swagger API Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+// Logger middleware
+app.use(logger.expressMiddleware);
+
 
 // API Routes
 app.use('/api/v1/auth', authRoutes);

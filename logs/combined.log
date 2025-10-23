@@ -121,3 +121,5 @@
     at getSecret (/app/node_modules/jsonwebtoken/verify.js:97:14)
     at module.exports [as verify] (/app/node_modules/jsonwebtoken/verify.js:101:10)
 2025-10-22 15:16:36 info: CSV download completed successfully
+{"timestamp":"2025-10-23 10:04:38","level":"info","message":"POST /api/v1/auth/login","service":"your-service-name","env":"development","correlationId":"none","method":"POST","url":"/api/v1/auth/login","status":200,"duration":"117ms","userAgent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36","ip":"::ffff:192.168.65.1"}
+{"timestamp":"2025-10-23 10:04:38","level":"info","message":"GET /api/v1/teachers/dashboard","service":"your-service-name","env":"development","correlationId":"none","method":"GET","url":"/api/v1/teachers/dashboard","status":304,"duration":"14ms","userAgent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36","ip":"::ffff:192.168.65.1"}
