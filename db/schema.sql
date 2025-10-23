@@ -1,6 +1,11 @@
-CREATE TYPE user_role AS ENUM ('teacher', 'student');
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('teacher', 'student');
+    END IF;
+END $$;
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
@@ -12,7 +17,7 @@ CREATE TABLE users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE students (
+CREATE TABLE IF NOT EXISTS students (
     id SERIAL PRIMARY KEY,
     user_id INTEGER UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     first_name VARCHAR(50) NOT NULL,
@@ -23,7 +28,7 @@ CREATE TABLE students (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE attendance (
+CREATE TABLE IF NOT EXISTS attendance (
     id SERIAL PRIMARY KEY,
     student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
     date DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -32,7 +37,7 @@ CREATE TABLE attendance (
     UNIQUE (student_id, date)
 );
 
-CREATE TABLE login_logs (
+CREATE TABLE IF NOT EXISTS login_logs (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     login_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -41,8 +46,34 @@ CREATE TABLE login_logs (
     status VARCHAR(20)
 );
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_students_user_id ON students(user_id);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_attendance_student_id_date ON attendance(student_id, date DESC);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_attendance_date ON attendance(date DESC);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_login_logs_user_id_time ON login_logs(user_id, login_time DESC);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_login_logs_login_time ON login_logs(login_time DESC);
+CREATE TABLE IF NOT EXISTS roles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_roles (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    role_id INTEGER REFERENCES roles(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS permissions (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+    id SERIAL PRIMARY KEY,
+    permission_id INTEGER REFERENCES permissions(id) ON DELETE CASCADE,
+    role_id INTEGER REFERENCES roles(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_students_user_id ON students(user_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_student_id_date ON attendance(student_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date DESC);
+CREATE INDEX IF NOT EXISTS idx_login_logs_user_id_time ON login_logs(user_id, login_time DESC);
+CREATE INDEX IF NOT EXISTS idx_login_logs_login_time ON login_logs(login_time DESC);
