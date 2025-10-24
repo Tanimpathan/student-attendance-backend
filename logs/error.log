@@ -120,3 +120,5 @@
     at /app/node_modules/jsonwebtoken/verify.js:261:12
     at getSecret (/app/node_modules/jsonwebtoken/verify.js:97:14)
     at module.exports [as verify] (/app/node_modules/jsonwebtoken/verify.js:101:10)
+{"timestamp":"2025-10-24 09:17:09","level":"error","message":"ReferenceError: logger is not defined\n    at exports.loginUser (/app/controllers/authController.js:209:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)","service":"your-service-name","env":"development"}
+{"timestamp":"2025-10-24 09:17:56","level":"error","message":"Login process failed with unexpected error","stack":"error: column r.permissions does not exist\n    at /app/node_modules/pg-pool/index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n    at async exports.loginUser (/app/controllers/authController.js:113:24)","service":"your-service-name","env":"development","action":"login_process_error","username":"teacher","ipAddress":"::ffff:192.168.65.1","error":"column r.permissions does not exist","errorCode":"LOGIN_001","errorType":"error","logType":"error"}

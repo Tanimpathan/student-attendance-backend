@@ -1,9 +1,10 @@
 const express = require('express');
 const { getDashboardStats, uploadStudents, downloadStudents, getStudents, addStudent, editStudent, deactivateStudent, getAttendanceRecords, getTeacherLoginActivity } = require('../controllers/teacherController');
-const { authenticateToken, authorizeRoles } = require('../middleware/authMiddleware');
+const { authenticateToken, authorizeRoles, authorize } = require('../middleware/authMiddleware');
 const multer = require('multer');
 const path = require('path');
 const { validateAddStudent, validateEditStudent } = require('../middleware/validationMiddleware');
+const { constatnts } = require('../utils/constants');
 
 const router = express.Router();
 
@@ -19,7 +20,8 @@ const upload = multer({
   },
 });
 
-router.get('/dashboard', authenticateToken, authorizeRoles(['teacher']), getDashboardStats);
+router.get('/dashboard', authenticateToken, authorize(constatnts.MANAGE_USERS), getDashboardStats);
+// router.get('/dashboard', authenticateToken, authorizeRoles(['teacher']), getDashboardStats);
 router.post('/students/upload', authenticateToken, authorizeRoles(['teacher']), upload.single('csvFile'), uploadStudents);
 router.get('/students/download', authenticateToken, authorizeRoles(['teacher']), downloadStudents);
 router.get('/students', authenticateToken, authorizeRoles(['teacher']), getStudents);
