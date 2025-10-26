@@ -6,6 +6,7 @@ const { stringify } = require('csv-stringify');
 const QueryStream = require('pg-query-stream');
 const { Transform } = require('stream');
 const fs = require('fs');
+const { constatnts } = require('../utils/constants');
 
 exports.getDashboardStats = async (req, res) => {
   try {
@@ -54,6 +55,15 @@ exports.uploadStudents = async (req, res) => {
     const newStudents = [];
     const duplicateUsers = [];
 
+    // Get the student role ID once outside the loop for efficiency
+    const roleResult = await db.query('SELECT id FROM roles WHERE name = $1', [constatnts.STUDENT]);
+    
+    if (roleResult.rows.length === 0) {
+      return res.status(500).json({ message: 'Student role not found in database' });
+    }
+    
+    const studentRoleId = roleResult.rows[0].id;
+
     for (const student of studentsData) {
       const { username, email, password, mobile, first_name, last_name, date_of_birth, address } = student;
 
@@ -77,17 +87,32 @@ exports.uploadStudents = async (req, res) => {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(password, salt);
 
+      // Insert into users table
       const newUser = await db.query(
         'INSERT INTO users (username, email, password, mobile, role) VALUES ($1, $2, $3, $4, $5) RETURNING id',
         [username, email, hashedPassword, mobile, 'student']
       );
 
-      const newStudent = await db.query(
-        'INSERT INTO students (user_id, first_name, last_name, date_of_birth, address) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-        [newUser.rows[0].id, first_name, last_name, date_of_birth || null, address || null]
+      const userId = newUser.rows[0].id;
+
+      // Insert into user_roles table
+      await db.query(
+        'INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)',
+        [userId, studentRoleId]
       );
 
-      newStudents.push({ userId: newUser.rows[0].id, studentId: newStudent.rows[0].id, username, email });
+      // Insert into students table
+      const newStudent = await db.query(
+        'INSERT INTO students (user_id, first_name, last_name, date_of_birth, address) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+        [userId, first_name, last_name, date_of_birth || null, address || null]
+      );
+
+      newStudents.push({ 
+        userId, 
+        studentId: newStudent.rows[0].id, 
+        username, 
+        email 
+      });
     }
     
     // Clean up the uploaded file
@@ -102,6 +127,12 @@ exports.uploadStudents = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error uploading students:', error);
+    
+    // Clean up file in case of error too
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -382,6 +413,15 @@ exports.addStudent = async (req, res) => {
       return res.status(400).json({ message: 'User with this username, email, or mobile already exists.' });
     }
 
+    // Get the student role ID
+    const roleResult = await db.query('SELECT id FROM roles WHERE name = $1', [constatnts.STUDENT]);
+    
+    if (roleResult.rows.length === 0) {
+      return res.status(500).json({ message: 'Student role not found in database' });
+    }
+    
+    const studentRoleId = roleResult.rows[0].id;
+
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -392,18 +432,30 @@ exports.addStudent = async (req, res) => {
       [username, email, hashedPassword, mobile, 'student']
     );
 
+    const userId = newUser.rows[0].id;
+
+    // Assign role to user in user_roles table
+    await db.query(
+      'INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)',
+      [userId, studentRoleId]
+    );
+
     // Save student details
     const newStudent = await db.query(
       'INSERT INTO students (user_id, first_name, last_name, date_of_birth, address) VALUES ($1, $2, $3, $4, $5) RETURNING id, first_name, last_name',
-      [newUser.rows[0].id, first_name, last_name, date_of_birth || null, address || null]
+      [userId, first_name, last_name, date_of_birth || null, address || null]
     );
 
     res.status(201).json({ 
       message: 'Student added successfully',
       student: { 
-        user_id: newUser.rows[0].id,
+        user_id: userId,
         student_id: newStudent.rows[0].id,
-        username, email, mobile, first_name: newStudent.rows[0].first_name, last_name: newStudent.rows[0].last_name 
+        username, 
+        email, 
+        mobile, 
+        first_name: newStudent.rows[0].first_name, 
+        last_name: newStudent.rows[0].last_name 
       }
     });
   } catch (error) {

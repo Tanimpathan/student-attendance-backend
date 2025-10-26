@@ -21,14 +21,22 @@ const upload = multer({
 });
 
 router.get('/dashboard', authenticateToken, authorize(constatnts.MANAGE_USERS), getDashboardStats);
+router.post('/students/upload', authenticateToken, authorize(constatnts.MANAGE_USERS), upload.single('csvFile'), uploadStudents);
+router.get('/students/download', authenticateToken, authorize(constatnts.MANAGE_USERS), downloadStudents);
+router.get('/students', authenticateToken, authorize(constatnts.MANAGE_USERS), getStudents);
+router.post('/students', authenticateToken, authorize(constatnts.MANAGE_USERS), validateAddStudent, addStudent);
+router.put('/students/:id', authenticateToken, authorize(constatnts.MANAGE_USERS), validateEditStudent, editStudent);
+router.put('/students/:id/deactivate', authenticateToken, authorize(constatnts.MANAGE_USERS), deactivateStudent);
+router.get('/attendance', authenticateToken, authorize(constatnts.MANAGE_USERS), getAttendanceRecords);
+router.get('/login-activity', authenticateToken, authorize(constatnts.MANAGE_USERS), getTeacherLoginActivity);
 // router.get('/dashboard', authenticateToken, authorizeRoles(['teacher']), getDashboardStats);
-router.post('/students/upload', authenticateToken, authorizeRoles(['teacher']), upload.single('csvFile'), uploadStudents);
-router.get('/students/download', authenticateToken, authorizeRoles(['teacher']), downloadStudents);
-router.get('/students', authenticateToken, authorizeRoles(['teacher']), getStudents);
-router.post('/students', authenticateToken, authorizeRoles(['teacher']), validateAddStudent, addStudent);
-router.put('/students/:id', authenticateToken, authorizeRoles(['teacher']), validateEditStudent, editStudent);
-router.put('/students/:id/deactivate', authenticateToken, authorizeRoles(['teacher']), deactivateStudent);
-router.get('/attendance', authenticateToken, authorizeRoles(['teacher']), getAttendanceRecords);
-router.get('/login-activity', authenticateToken, authorizeRoles(['teacher']), getTeacherLoginActivity);
+// router.post('/students/upload', authenticateToken, authorizeRoles(['teacher']), upload.single('csvFile'), uploadStudents);
+// router.get('/students/download', authenticateToken, authorizeRoles(['teacher']), downloadStudents);
+// router.get('/students', authenticateToken, authorizeRoles(['teacher']), getStudents);
+// router.post('/students', authenticateToken, authorizeRoles(['teacher']), validateAddStudent, addStudent);
+// router.put('/students/:id', authenticateToken, authorizeRoles(['teacher']), validateEditStudent, editStudent);
+// router.put('/students/:id/deactivate', authenticateToken, authorizeRoles(['teacher']), deactivateStudent);
+// router.get('/attendance', authenticateToken, authorizeRoles(['teacher']), getAttendanceRecords);
+// router.get('/login-activity', authenticateToken, authorizeRoles(['teacher']), getTeacherLoginActivity);
 
 module.exports = router;
