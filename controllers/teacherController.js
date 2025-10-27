@@ -83,8 +83,8 @@ exports.uploadStudents = async (req, res, next) => {
 
       // validation
       if (!username || !email || !password || !mobile || !first_name || !last_name) {
-        duplicateUsers.push({ student, reason: 'Missing required fields' });
-        continue;
+        const validationError = createValidationError(`Missing required fields for student: ${JSON.stringify(student)}`);
+        return next(validationError);
       }
 
       // Check for existing user (username, email, or mobile)
