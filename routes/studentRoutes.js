@@ -1,20 +1,30 @@
 const express = require('express');
-const { getStudentProfile, markAttendance, getTodayAttendance, editProfile, getLoginActivity } = require('../controllers/studentController');
-const { authenticateToken, authorizeRoles, authorize } = require('../middleware/authMiddleware');
-const { validateEditStudent, validateMarkAttendance } = require('../middleware/validationMiddleware');
+const { 
+  getStudentProfile, 
+  updateStudentProfile, 
+  getStudentAttendance, 
+  getStudentAttendanceStats,
+  getStudentLoginActivity 
+} = require('../controllers/studentController');
+const { authenticateToken } = require('../middleware/authMiddleware');
+const { asyncHandler } = require('../middleware/errorMiddleware');
+const { validateUpdateStudentProfile } = require('../middleware/validationMiddleware');
 const { constatnts } = require('../utils/constants');
 
 const router = express.Router();
 
-router.get('/profile/:id', authenticateToken, authorize(constatnts.MANAGE_STUDENTS), getStudentProfile);
-router.post('/mark-attendance/:id', authenticateToken, authorize(constatnts.MANAGE_STUDENTS), validateMarkAttendance, markAttendance);
-router.get('/today-attendance/:id', authenticateToken, authorize(constatnts.MANAGE_STUDENTS), getTodayAttendance);
-router.put('/edit-profile/:id', authenticateToken, authorize(constatnts.MANAGE_STUDENTS), validateEditStudent, editProfile);
-router.get('/login-activity/:id', authenticateToken, authorize(constatnts.MANAGE_STUDENTS), getLoginActivity);
-// router.get('/profile/:id', authenticateToken, authorizeRoles(['student']), getStudentProfile);
-// router.post('/mark-attendance/:id', authenticateToken, authorizeRoles(['student']), validateMarkAttendance, markAttendance);
-// router.get('/today-attendance/:id', authenticateToken, authorizeRoles(['student']), getTodayAttendance);
-// router.put('/edit-profile/:id', authenticateToken, authorizeRoles(['student']), validateEditStudent, editProfile);
-// router.get('/login-activity/:id', authenticateToken, authorizeRoles(['student']), getLoginActivity);
+// All student routes require authentication
+router.use(authenticateToken);
+
+// Student profile routes
+router.get('/profile', asyncHandler(getStudentProfile));
+router.put('/profile', validateUpdateStudentProfile, asyncHandler(updateStudentProfile));
+
+// Student attendance routes
+router.get('/attendance', asyncHandler(getStudentAttendance));
+router.get('/attendance/stats', asyncHandler(getStudentAttendanceStats));
+
+// Student activity routes
+router.get('/login-activity', asyncHandler(getStudentLoginActivity));
 
 module.exports = router;

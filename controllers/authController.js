@@ -3,22 +3,32 @@ const jwt = require('jsonwebtoken');
 const db = require('../db/db');
 const logger = require('../utils/logger');
 const { constatnts } = require('../utils/constants');
+const { 
+  createDuplicateError, 
+  createNotFoundError, 
+  createDatabaseError, 
+  createAuthenticationError,
+  createValidationError,
+  ConfigurationError,
+  DatabaseError
+} = require('../utils/errors');
 
-exports.registerTeacher = async (req, res) => {
+exports.registerTeacher = async (req, res, next) => {
   const { username, email, password, mobile } = req.body;
 
   try {
-    // Check for existing user
+    // Check if user already exists
     const existingUser = await db.query(
       'SELECT id FROM users WHERE username = $1 OR email = $2 OR mobile = $3',
       [username, email, mobile]
     );
 
     if (existingUser.rows.length > 0) {
-      return res.status(400).json({ message: 'User with this username, email, or mobile already exists.' });
+      const duplicateError = createDuplicateError('User', `${username}, ${email}, or ${mobile}`);
+      return next(duplicateError);
     }
 
-    // Get teacher role from roles table
+    // Get teacher role ID
     const roleResult = await db.query(
       'SELECT id FROM roles WHERE name = $1',
       [constatnts.TEACHER]
@@ -29,7 +39,8 @@ exports.registerTeacher = async (req, res) => {
         action: 'role_not_found',
         role: 'teacher'
       });
-      return res.status(500).json({ message: 'Teacher role not configured in system' });
+      const configError = new ConfigurationError('Teacher role not configured in system');
+      return next(configError);
     }
 
     const teacherRoleId = roleResult.rows[0].id;
@@ -38,10 +49,10 @@ exports.registerTeacher = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Start transaction for atomic operations
+    // Start transaction
     await db.query('BEGIN');
 
-    // Save user to database
+    // Insert user into database
     const newUser = await db.query(
       'INSERT INTO users (username, email, password, mobile, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, email, mobile, role',
       [username, email, hashedPassword, mobile, 'teacher']
@@ -49,7 +60,7 @@ exports.registerTeacher = async (req, res) => {
 
     const userId = newUser.rows[0].id;
 
-    // Save user role to user_roles table
+    // Assign role to user
     await db.query(
       'INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)',
       [userId, teacherRoleId]
@@ -64,7 +75,7 @@ exports.registerTeacher = async (req, res) => {
     });
 
   } catch (error) {
-    // Rollback transaction in case of error
+    // Rollback transaction on error
     await db.query('ROLLBACK').catch(rollbackError => {
       logger.error('Transaction rollback failed', {
         action: 'rollback_error',
@@ -81,7 +92,15 @@ exports.registerTeacher = async (req, res) => {
       stack: error.stack,
       errorCode: 'TEACHER_REG_001'
     });
-    res.status(500).json({ message: 'Server error' });
+    
+    // Handle duplicate key constraint
+    if (error.code === '23505') {
+      const duplicateError = createDuplicateError('User', `${username}, ${email}, or ${mobile}`);
+      return next(duplicateError);
+    }
+    
+    const dbError = createDatabaseError('teacher registration', error);
+    next(dbError);
   }
 };
 
@@ -105,11 +124,11 @@ const logLoginAttempt = async (userId, ipAddress, userAgent, status) => {
   }
 };
 
-exports.loginUser = async (req, res) => {
+exports.loginUser = async (req, res, next) => {
   const { username, password } = req.body;
 
   try {
-    // Check if user exists with role and permission information
+    // Get user with roles and permissions
     const userResult = await db.query(
       `SELECT 
          u.id, u.username, u.email, u.mobile, u.password, u.role, u.is_active,
@@ -124,39 +143,41 @@ exports.loginUser = async (req, res) => {
       [username]
     );
 
-    // Get client info for logging
+    // Get client info
     const ipAddress = req.ip || req.connection.remoteAddress;
     const userAgent = req.get('User-Agent');
 
     if (userResult.rows.length === 0) {
       await logLoginAttempt(null, ipAddress, userAgent, 'failure');
-      return res.status(401).json({ message: 'Invalid credentials' });
+      const authError = createAuthenticationError('Invalid username or password');
+      return next(authError);
     }
 
     const user = userResult.rows[0];
 
     if (!user.is_active) {
       await logLoginAttempt(user.id, ipAddress, userAgent, 'failure');
-      return res.status(401).json({ message: 'Account is deactivated. Please contact support.' });
+      const authError = createAuthenticationError('Account is deactivated. Please contact support.');
+      return next(authError);
     }
 
-    // Compare password
+    // Verify password
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
       await logLoginAttempt(user.id, ipAddress, userAgent, 'failure');
-      return res.status(401).json({ message: 'Invalid credentials' });
+      const authError = createAuthenticationError('Invalid username or password');
+      return next(authError);
     }
 
     // Log successful login
     await logLoginAttempt(user.id, ipAddress, userAgent, 'success');
 
-    // Process all roles and permissions from the joined result
+    // Build roles and permissions
     const rolesMap = new Map();
     const allPermissions = new Set();
 
     userResult.rows.forEach(row => {
-      // Collect roles
       if (row.role_id) {
         if (!rolesMap.has(row.role_id)) {
           rolesMap.set(row.role_id, {
@@ -166,7 +187,6 @@ exports.loginUser = async (req, res) => {
           });
         }
         
-        // Collect permissions for this role
         if (row.permission_id) {
           const role = rolesMap.get(row.role_id);
           role.permissions.push({
@@ -174,7 +194,6 @@ exports.loginUser = async (req, res) => {
             name: row.permission_name
           });
           
-          // Add to overall permissions set
           allPermissions.add(row.permission_name);
         }
       }
@@ -193,7 +212,7 @@ exports.loginUser = async (req, res) => {
       permissions: permissionsArray
     };
 
-    // If user is a student, fetch student ID from student table
+    // Add student info if user is a student
     if (user.role === 'student') {
       const studentResult = await db.query(
         'SELECT id, first_name, last_name FROM students WHERE user_id = $1',
@@ -207,7 +226,7 @@ exports.loginUser = async (req, res) => {
       }
     }
 
-    // Generate JWT token with roles and permissions
+    // Create JWT token
     const token = jwt.sign(
       { 
         id: user.id, 
@@ -236,7 +255,9 @@ exports.loginUser = async (req, res) => {
       errorType: error.name,
       logType: 'error'
     });
-    res.status(500).json({ message: 'Server error' });
+    
+    const dbError = createDatabaseError('user login', error);
+    next(dbError);
   }
 };
 

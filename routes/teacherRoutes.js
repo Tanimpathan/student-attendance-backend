@@ -1,6 +1,7 @@
 const express = require('express');
 const { getDashboardStats, uploadStudents, downloadStudents, getStudents, addStudent, editStudent, deactivateStudent, getAttendanceRecords, getTeacherLoginActivity } = require('../controllers/teacherController');
 const { authenticateToken, authorizeRoles, authorize } = require('../middleware/authMiddleware');
+const { asyncHandler } = require('../middleware/errorMiddleware');
 const multer = require('multer');
 const path = require('path');
 const { validateAddStudent, validateEditStudent } = require('../middleware/validationMiddleware');
@@ -20,23 +21,18 @@ const upload = multer({
   },
 });
 
-router.get('/dashboard', authenticateToken, authorize(constatnts.MANAGE_USERS), getDashboardStats);
-router.post('/students/upload', authenticateToken, authorize(constatnts.MANAGE_USERS), upload.single('csvFile'), uploadStudents);
-router.get('/students/download', authenticateToken, authorize(constatnts.MANAGE_USERS), downloadStudents);
-router.get('/students', authenticateToken, authorize(constatnts.MANAGE_USERS), getStudents);
-router.post('/students', authenticateToken, authorize(constatnts.MANAGE_USERS), validateAddStudent, addStudent);
-router.put('/students/:id', authenticateToken, authorize(constatnts.MANAGE_USERS), validateEditStudent, editStudent);
-router.put('/students/:id/deactivate', authenticateToken, authorize(constatnts.MANAGE_USERS), deactivateStudent);
-router.get('/attendance', authenticateToken, authorize(constatnts.MANAGE_USERS), getAttendanceRecords);
-router.get('/login-activity', authenticateToken, authorize(constatnts.MANAGE_USERS), getTeacherLoginActivity);
-// router.get('/dashboard', authenticateToken, authorizeRoles(['teacher']), getDashboardStats);
-// router.post('/students/upload', authenticateToken, authorizeRoles(['teacher']), upload.single('csvFile'), uploadStudents);
-// router.get('/students/download', authenticateToken, authorizeRoles(['teacher']), downloadStudents);
-// router.get('/students', authenticateToken, authorizeRoles(['teacher']), getStudents);
-// router.post('/students', authenticateToken, authorizeRoles(['teacher']), validateAddStudent, addStudent);
-// router.put('/students/:id', authenticateToken, authorizeRoles(['teacher']), validateEditStudent, editStudent);
-// router.put('/students/:id/deactivate', authenticateToken, authorizeRoles(['teacher']), deactivateStudent);
-// router.get('/attendance', authenticateToken, authorizeRoles(['teacher']), getAttendanceRecords);
-// router.get('/login-activity', authenticateToken, authorizeRoles(['teacher']), getTeacherLoginActivity);
+// Apply auth to all subsequent routes
+router.use(authenticateToken);
+router.use(authorize(constatnts.MANAGE_USERS));
+
+router.get('/dashboard', asyncHandler(getDashboardStats));
+router.post('/students/upload', upload.single('csvFile'), asyncHandler(uploadStudents));
+router.get('/students/download', asyncHandler(downloadStudents));
+router.get('/students', validateAddStudent, asyncHandler(addStudent));
+router.put('/students/:id', validateEditStudent, asyncHandler(editStudent));
+router.put('/students/:id/deactivate', asyncHandler(deactivateStudent));
+router.get('/attendance', asyncHandler(getAttendanceRecords));
+router.get('/login-activity', asyncHandler(getTeacherLoginActivity));
+
 
 module.exports = router;

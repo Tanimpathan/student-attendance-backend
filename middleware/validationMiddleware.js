@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { createValidationError } = require('../utils/errors');
 
 const createValidator = (schema) => (req, res, next) => {
   const { error, value } = schema.validate(req.body || {}, {
@@ -8,12 +9,18 @@ const createValidator = (schema) => (req, res, next) => {
   });
 
   if (error) {
-    return res.status(400).json({ 
-      errors: error.details.map((d) => ({ 
-        msg: d.message, 
-        param: d.path.join('.') 
-      }))
-    });
+    const validationDetails = error.details.map((d) => ({ 
+      field: d.path.join('.'),
+      message: d.message,
+      value: d.context?.value
+    }));
+    
+    const validationError = createValidationError(
+      'Validation failed', 
+      'VAL_001', 
+      validationDetails
+    );
+    return next(validationError);
   }
 
   req.body = value;
@@ -77,8 +84,27 @@ const markAttendanceSchema = Joi.object({
   }),
 });
 
+const updateStudentProfileSchema = Joi.object({
+  first_name: Joi.string().min(1).optional().messages({ 
+    'string.min': 'First name must not be empty',
+    'string.base': 'First name must be a string'
+  }),
+  last_name: Joi.string().min(1).optional().messages({ 
+    'string.min': 'Last name must not be empty',
+    'string.base': 'Last name must be a string'
+  }),
+  mobile: Joi.string().pattern(mobilePattern).optional().messages({ 
+    'string.pattern.base': 'Please include a valid mobile number'
+  }),
+  date_of_birth: Joi.date().iso().optional().allow('', null).messages({ 
+    'date.format': 'Invalid date of birth format'
+  }),
+  address: Joi.string().optional().allow('').messages({}),
+}).options({ stripUnknown: true });
+
 exports.validateRegistration = createValidator(registrationSchema);
 exports.validateLogin = createValidator(loginSchema);
 exports.validateAddStudent = createValidator(addStudentSchema);
 exports.validateEditStudent = createValidator(editStudentSchema);
 exports.validateMarkAttendance = createValidator(markAttendanceSchema);
+exports.validateUpdateStudentProfile = createValidator(updateStudentProfileSchema);
