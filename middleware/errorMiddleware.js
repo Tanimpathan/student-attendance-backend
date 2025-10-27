@@ -8,10 +8,7 @@ const {
   ConfigurationError
 } = require('../utils/errors');
 
-/**
- * Global error handler middleware
- * Replaces generic "Server error" with specific error messages
- */
+
 exports.errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
