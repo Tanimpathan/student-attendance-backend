@@ -7,8 +7,18 @@ const QueryStream = require('pg-query-stream');
 const { Transform } = require('stream');
 const fs = require('fs');
 const { constatnts } = require('../utils/constants');
+const {
+  AppError,
+  AuthenticationError,
+  RecordNotFoundError,
+  DatabaseError,
+  ValidationError,
+  FileError,
+  ConfigurationError,
+  DuplicateDataError
+} = require('../utils/errors');
 
-exports.getDashboardStats = async (req, res) => {
+exports.getDashboardStats = async (req, res, next) => {
   try {
     // Total Students
     const totalStudentsResult = await db.query(
@@ -41,14 +51,16 @@ exports.getDashboardStats = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error fetching dashboard stats:', error);
-    res.status(500).json({ message: 'Server error' });
+    const dbError = new DatabaseError('Database query failed', 'DB_002', error);
+    next(dbError);
   }
 };
 
-exports.uploadStudents = async (req, res) => {
+exports.uploadStudents = async (req, res, next) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: 'No CSV file uploaded.' });
+      const fileError = new FileError('No CSV file uploaded', 'FILE_001');
+      return next(fileError);
     }
 
     const studentsData = await parseCsv(req.file.path);
@@ -59,7 +71,8 @@ exports.uploadStudents = async (req, res) => {
     const roleResult = await db.query('SELECT id FROM roles WHERE name = $1', [constatnts.STUDENT]);
     
     if (roleResult.rows.length === 0) {
-      return res.status(500).json({ message: 'Student role not found in database' });
+      const configError = new ConfigurationError('Student role not found in database');
+      return next(configError);
     }
     
     const studentRoleId = roleResult.rows[0].id;
@@ -69,8 +82,8 @@ exports.uploadStudents = async (req, res) => {
 
       // validation
       if (!username || !email || !password || !mobile || !first_name || !last_name) {
-        duplicateUsers.push({ student, reason: 'Missing required fields' });
-        continue;
+        const validationError = new ValidationError(`Missing required fields for student: ${JSON.stringify(student)}`, 'VAL_001');
+        return next(validationError);
       }
 
       // Check for existing user (username, email, or mobile)
@@ -80,8 +93,12 @@ exports.uploadStudents = async (req, res) => {
       );
 
       if (existingUser.rows.length > 0) {
-        duplicateUsers.push({ student, reason: 'Duplicate username, email, or mobile' });
-        continue;
+        const duplicateError = new DuplicateDataError(
+          'Duplicate username, email, or mobile',
+          'VAL_002',
+          `${username}, ${email}, or ${mobile}`
+        );
+        return next(duplicateError);
       }
 
       const salt = await bcrypt.genSalt(10);
@@ -133,7 +150,8 @@ exports.uploadStudents = async (req, res) => {
       fs.unlinkSync(req.file.path);
     }
     
-    res.status(500).json({ message: 'Server error' });
+    const dbError = new DatabaseError('student upload failed', 'DB_002', error);
+    next(dbError);
   }
 };
 
@@ -195,7 +213,7 @@ exports.uploadStudents = async (req, res) => {
 //   }
 // };
 
-exports.downloadStudents = async (req, res) => {
+exports.downloadStudents = async (req, res, next) => {
   let client;
   
   try {
@@ -268,7 +286,8 @@ exports.downloadStudents = async (req, res) => {
     stream.on('error', (error) => {
       logger.error('Query stream error:', error);
       if (!res.headersSent) {
-        res.status(500).json({ message: 'Database error' });
+        const dbError = new DatabaseError('student download stream failed', 'DB_002', error);
+        next(dbError);
       } else {
         res.end();
       }
@@ -297,12 +316,13 @@ exports.downloadStudents = async (req, res) => {
     logger.error('Error setting up download:', error);
     if (client) client.release();
     if (!res.headersSent) {
-      res.status(500).json({ message: 'Server error' });
+      const dbError = new DatabaseError('student download setup failed', 'DB_002', error);
+      next(dbError);
     }
   }
 };
 
-exports.getStudents = async (req, res) => {
+exports.getStudents = async (req, res, next) => {
   try {
     const { page = 1, limit = 10, filterBy, filterValue, sortBy, sortOrder = 'asc' } = req.query;
     const offset = (page - 1) * limit;
@@ -395,11 +415,12 @@ exports.getStudents = async (req, res) => {
 
   } catch (error) {
     logger.error('Error fetching students:', error);
-    res.status(500).json({ message: 'Server error' });
+    const dbError = new DatabaseError('student list retrieval failed', 'DB_002', error);
+    next(dbError);
   }
 };
 
-exports.addStudent = async (req, res) => {
+exports.addStudent = async (req, res, next) => {
   const { username, email, password, mobile, first_name, last_name, date_of_birth, address } = req.body;
 
   try {
@@ -410,14 +431,20 @@ exports.addStudent = async (req, res) => {
     );
 
     if (existingUser.rows.length > 0) {
-      return res.status(400).json({ message: 'User with this username, email, or mobile already exists.' });
+      const duplicateError = new DuplicateDataError(
+        'User with this username, email, or mobile already exists.',
+        'VAL_002',
+        `${username}, ${email}, or ${mobile}`
+      );
+      return next(duplicateError);
     }
 
     // Get the student role ID
     const roleResult = await db.query('SELECT id FROM roles WHERE name = $1', [constatnts.STUDENT]);
     
     if (roleResult.rows.length === 0) {
-      return res.status(500).json({ message: 'Student role not found in database' });
+      const configError = new ConfigurationError('Student role not found in database');
+      return next(configError);
     }
     
     const studentRoleId = roleResult.rows[0].id;
@@ -460,11 +487,22 @@ exports.addStudent = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error adding student:', error);
-    res.status(500).json({ message: 'Server error' });
+    
+    if (error.code === '23505') {
+      const duplicateError = new DuplicateDataError(
+        'User with this username, email, or mobile already exists.',
+        'VAL_002',
+        `${username}, ${email}, or ${mobile}`
+      );
+      return next(duplicateError);
+    }
+    
+    const dbError = new DatabaseError('student creation failed', 'DB_002', error);
+    next(dbError);
   }
 };
 
-exports.editStudent = async (req, res) => {
+exports.editStudent = async (req, res, next) => {
   const { id } = req.params;
   const { username, email, mobile, first_name, last_name, date_of_birth, address, is_active } = req.body;
 
@@ -475,7 +513,8 @@ exports.editStudent = async (req, res) => {
     );
 
     if (studentResult.rows.length === 0) {
-      return res.status(404).json({ message: 'Student not found.' });
+      const notFoundError = new RecordNotFoundError('Student not found', 'DB_001', id);
+      return next(notFoundError);
     }
 
     const userId = studentResult.rows[0].user_id;
@@ -486,7 +525,12 @@ exports.editStudent = async (req, res) => {
     const existingUserResult = await db.query(existingUserQuery, existingUserParams);
 
     if (existingUserResult.rows.length > 0) {
-      return res.status(400).json({ message: 'Another user with this username, email, or mobile already exists.' });
+      const duplicateError = new DuplicateDataError(
+        'Another user with this username, email, or mobile already exists.',
+        'VAL_002',
+        `${username}, ${email}, or ${mobile}`
+      );
+      return next(duplicateError);
     }
 
     // Update user details
@@ -527,11 +571,22 @@ exports.editStudent = async (req, res) => {
 
   } catch (error) {
     logger.error('Error editing student:', error);
-    res.status(500).json({ message: 'Server error' });
+    
+    if (error.code === '23505') {
+      const duplicateError = new DuplicateDataError(
+        'Another user with this username, email, or mobile already exists.',
+        'VAL_002',
+        `${username}, ${email}, or ${mobile}`
+      );
+      return next(duplicateError);
+    }
+    
+    const dbError = new DatabaseError('student update failed', 'DB_002', error);
+    next(dbError);
   }
 };
 
-exports.deactivateStudent = async (req, res) => {
+exports.deactivateStudent = async (req, res, next) => {
   const { id } = req.params;
 
   try {
@@ -541,7 +596,8 @@ exports.deactivateStudent = async (req, res) => {
     );
 
     if (studentResult.rows.length === 0) {
-      return res.status(404).json({ message: 'Student not found.' });
+      const notFoundError = new RecordNotFoundError('Student not found', 'DB_001', id);
+      return next(notFoundError);
     }
 
     const userId = studentResult.rows[0].user_id;
@@ -558,11 +614,12 @@ exports.deactivateStudent = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error deactivating student:', error);
-    res.status(500).json({ message: 'Server error' });
+    const dbError = new DatabaseError('student deactivation failed', 'DB_002', error);
+    next(dbError);
   }
 };
 
-exports.getAttendanceRecords = async (req, res) => {
+exports.getAttendanceRecords = async (req, res, next) => {
   try {
     const { page = 1, limit = 10, studentId, startDate, endDate, isPresent } = req.query;
     const offset = (page - 1) * limit;
@@ -638,11 +695,12 @@ exports.getAttendanceRecords = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error fetching attendance records:', error);
-    res.status(500).json({ message: 'Server error' });
+    const dbError = new DatabaseError('attendance records retrieval failed', 'DB_002', error);
+    next(dbError);
   }
 };
 
-exports.getTeacherLoginActivity = async (req, res) => {
+exports.getTeacherLoginActivity = async (req, res, next) => {
   try {
       const teacherId = req.user.id;
 
@@ -665,6 +723,7 @@ exports.getTeacherLoginActivity = async (req, res) => {
 
   } catch (error) {
       logger.error('Error getting teacher login activity:', error);
-      res.status(500).json({ message: 'Server error' });
+      const dbError = new DatabaseError('teacher login activity retrieval failed', 'DB_002', error);
+      next(dbError);
   }
 }

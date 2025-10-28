@@ -3,8 +3,15 @@ const jwt = require('jsonwebtoken');
 const db = require('../db/db');
 const logger = require('../utils/logger');
 const { constatnts } = require('../utils/constants');
+const {
+  AppError,
+  AuthenticationError,
+  DuplicateDataError,
+  ConfigurationError,
+  DatabaseError,
+} = require('../utils/errors');
 
-exports.registerTeacher = async (req, res) => {
+exports.registerTeacher = async (req, res, next) => {
   const { username, email, password, mobile } = req.body;
 
   try {
@@ -15,7 +22,14 @@ exports.registerTeacher = async (req, res) => {
     );
 
     if (existingUser.rows.length > 0) {
-      return res.status(400).json({ message: 'User with this username, email, or mobile already exists.' });
+      console.log('from try');
+      
+      const duplicateError = new DuplicateDataError(
+        'User with this username, email, or mobile already exists.',
+        'VAL_002',
+        `${username}, ${email}, or ${mobile}`
+      );
+      return next(duplicateError);
     }
 
     // Get teacher role from roles table
@@ -29,7 +43,8 @@ exports.registerTeacher = async (req, res) => {
         action: 'role_not_found',
         role: 'teacher'
       });
-      return res.status(500).json({ message: 'Teacher role not configured in system' });
+      const configError = new ConfigurationError('Teacher role not configured in system');
+      return next(configError);
     }
 
     const teacherRoleId = roleResult.rows[0].id;
@@ -58,9 +73,9 @@ exports.registerTeacher = async (req, res) => {
     // Commit transaction
     await db.query('COMMIT');
 
-    res.status(201).json({ 
-      message: 'Teacher registered successfully', 
-      user: newUser.rows[0] 
+    res.status(201).json({
+      message: 'Teacher registered successfully',
+      user: newUser.rows[0]
     });
 
   } catch (error) {
@@ -81,7 +96,20 @@ exports.registerTeacher = async (req, res) => {
       stack: error.stack,
       errorCode: 'TEACHER_REG_001'
     });
-    res.status(500).json({ message: 'Server error' });
+    
+    // Handle duplicate key constraint specifically
+    if (error.code === '23505') {
+      console.log('from catch');
+      const duplicateError = new DuplicateDataError(
+        'User with this username, email, or mobile already exists.',
+        'VAL_002',
+        `${username}, ${email}, or ${mobile}`
+      );
+      return next(duplicateError);
+    }
+
+    const dbError = new DatabaseError('teacher registration failed', 'DB_002', error);
+    next(dbError);
   }
 };
 
@@ -105,7 +133,7 @@ const logLoginAttempt = async (userId, ipAddress, userAgent, status) => {
   }
 };
 
-exports.loginUser = async (req, res) => {
+exports.loginUser = async (req, res, next) => {
   const { username, password } = req.body;
 
   try {
@@ -130,14 +158,16 @@ exports.loginUser = async (req, res) => {
 
     if (userResult.rows.length === 0) {
       await logLoginAttempt(null, ipAddress, userAgent, 'failure');
-      return res.status(401).json({ message: 'Invalid credentials' });
+      const authError = new AuthenticationError('Invalid username or password');
+      return next(authError);
     }
 
     const user = userResult.rows[0];
 
     if (!user.is_active) {
       await logLoginAttempt(user.id, ipAddress, userAgent, 'failure');
-      return res.status(401).json({ message: 'Account is deactivated. Please contact support.' });
+      const authError = new AuthenticationError('Account is deactivated. Please contact support.');
+      return next(authError);
     }
 
     // Compare password
@@ -145,7 +175,8 @@ exports.loginUser = async (req, res) => {
 
     if (!isMatch) {
       await logLoginAttempt(user.id, ipAddress, userAgent, 'failure');
-      return res.status(401).json({ message: 'Invalid credentials' });
+      const authError = new AuthenticationError('Invalid username or password');
+      return next(authError);
     }
 
     // Log successful login
@@ -165,7 +196,7 @@ exports.loginUser = async (req, res) => {
             permissions: []
           });
         }
-        
+
         // Collect permissions for this role
         if (row.permission_id) {
           const role = rolesMap.get(row.role_id);
@@ -173,7 +204,7 @@ exports.loginUser = async (req, res) => {
             id: row.permission_id,
             name: row.permission_name
           });
-          
+
           // Add to overall permissions set
           allPermissions.add(row.permission_name);
         }
@@ -183,10 +214,10 @@ exports.loginUser = async (req, res) => {
     const userRoles = Array.from(rolesMap.values());
     const permissionsArray = Array.from(allPermissions);
 
-    const userData = { 
-      id: user.id, 
-      username: user.username, 
-      email: user.email, 
+    const userData = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
       mobile: user.mobile,
       role: user.role,
       roles: userRoles,
@@ -199,7 +230,7 @@ exports.loginUser = async (req, res) => {
         'SELECT id, first_name, last_name FROM students WHERE user_id = $1',
         [user.id]
       );
-      
+
       if (studentResult.rows[0]) {
         userData.student_id = studentResult.rows[0].id;
         userData.first_name = studentResult.rows[0].first_name;
@@ -209,8 +240,8 @@ exports.loginUser = async (req, res) => {
 
     // Generate JWT token with roles and permissions
     const token = jwt.sign(
-      { 
-        id: user.id, 
+      {
+        id: user.id,
         username: user.username,
         role: user.role,
         roles: userRoles.map(role => role.name),
@@ -220,11 +251,11 @@ exports.loginUser = async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
 
-    res.status(200).json({ 
-      token, 
+    res.status(200).json({
+      token,
       user: userData
     });
-    
+
   } catch (error) {
     logger.error('Login process failed with unexpected error', {
       action: 'login_process_error',
@@ -236,7 +267,8 @@ exports.loginUser = async (req, res) => {
       errorType: error.name,
       logType: 'error'
     });
-    res.status(500).json({ message: 'Server error' });
+    const dbError = new DatabaseError('user login failed', 'DB_002', error);
+    next(dbError);
   }
 };
 
@@ -277,11 +309,11 @@ exports.loginUser = async (req, res) => {
 //     // Log successful login
 //     await logLoginAttempt(user.id, ipAddress, userAgent, 'success');
 
-//     const userData = { 
-//       id: user.id, 
-//       username: user.username, 
-//       email: user.email, 
-//       role: user.role 
+//     const userData = {
+//       id: user.id,
+//       username: user.username,
+//       email: user.email,
+//       role: user.role
 //     };
 
 //     // If user is a student, fetch student ID from student table
@@ -290,7 +322,7 @@ exports.loginUser = async (req, res) => {
 //         'SELECT id FROM students WHERE user_id = $1',
 //         [user.id]
 //       );
-      
+
 //       if (studentResult.rows[0]) {
 //         userData.student_id = studentResult.rows[0].id;
 //       }
@@ -303,11 +335,11 @@ exports.loginUser = async (req, res) => {
 //       { expiresIn: process.env.JWT_EXPIRES_IN }
 //     );
 
-//     res.status(200).json({ 
-//       token, 
+//     res.status(200).json({
+//       token,
 //       user: userData
 //     });
-    
+
 //   } catch (error) {
 //     logger.error('Login process failed with unexpected error', {
 //       action: 'login_process_error',
