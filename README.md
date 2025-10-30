@@ -21,16 +21,8 @@ To set up and run the project using Docker Compose:
     This command will build the Docker images (if not already built), create the necessary containers for the application and PostgreSQL database, and start them in detached mode.
     ```bash
     docker-compose up --build -d
-    ```
 
-3.  **Run Database Migrations:**
-    Once the containers are up, you need to run database migrations to set up the schema. You can do this by executing a command inside the running application container:
-    ```bash
-    docker-compose exec app npm run migrate
-    ```
-    (Assuming `npm run migrate` is defined in `package.json` to run `db/migrate.js`)
-
-4.  **Verify the application is running:**
+3.  **Verify the application is running:**
     You can check the logs of the application container:
     ```bash
     docker-compose logs app
